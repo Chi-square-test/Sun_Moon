@@ -49,37 +49,28 @@ public class camerax extends AppCompatActivity {
 
 
         back = findViewById(R.id.back2);
-        back.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Intent start_intent = new Intent(camerax.this, list.class);
-                startActivity(start_intent);
-            }
+        back.setOnClickListener(view -> {
+            Intent start_intent = new Intent(camerax.this, list.class);
+            startActivity(start_intent);
         });
 
         go = findViewById(R.id.go);
-        go.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Intent start_intent = new Intent(camerax.this, exercise_intro.class);
-                startActivity(start_intent);
-            }
+        go.setOnClickListener(view -> {
+            Intent start_intent = new Intent(camerax.this, exercise_intro.class);
+            startActivity(start_intent);
         });
     }
 
     private void startCamera() {
         final ListenableFuture<ProcessCameraProvider>
                 cameraProviderListenableFuture=ProcessCameraProvider.getInstance(this);
-        cameraProviderListenableFuture.addListener(new Runnable() {
-            @Override
-            public void run() {
-                try{
-                    ProcessCameraProvider cameraProvider=cameraProviderListenableFuture.get();
-                    bindPreview(cameraProvider);
-                }catch (ExecutionException | InterruptedException e)
-                {
+        cameraProviderListenableFuture.addListener(() -> {
+            try{
+                ProcessCameraProvider cameraProvider=cameraProviderListenableFuture.get();
+                bindPreview(cameraProvider);
+            }catch (ExecutionException | InterruptedException ignored)
+            {
 
-                }
             }
         },ContextCompat.getMainExecutor(this));
     }
@@ -87,7 +78,7 @@ public class camerax extends AppCompatActivity {
         Preview preview=new Preview.Builder().build();
         CameraSelector cameraSelector=new CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_FRONT).build();
         preview.setSurfaceProvider(mPreviewView.getSurfaceProvider());
-        Camera camera = cameraProvider.bindToLifecycle((LifecycleOwner)this, cameraSelector, preview);
+        Camera camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview);
     }
 
     private boolean allPermissionsGranted() {

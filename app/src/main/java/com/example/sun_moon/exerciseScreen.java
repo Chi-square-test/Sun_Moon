@@ -6,7 +6,6 @@ import static java.lang.Thread.sleep;
 
 import android.animation.ObjectAnimator;
 import android.annotation.SuppressLint;
-import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -31,7 +30,6 @@ import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.AspectRatio;
 import androidx.camera.core.CameraSelector;
@@ -39,7 +37,6 @@ import androidx.camera.core.ExperimentalGetImage;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.core.content.ContextCompat;
-import androidx.lifecycle.LifecycleOwner;
 
 import com.bumptech.glide.Glide;
 import com.google.android.gms.tasks.Task;
@@ -111,7 +108,7 @@ public class exerciseScreen extends AppCompatActivity {
 
     public exerciseScreen() { //생성자는 나중에 처리
         classificationExecutor = Executors.newSingleThreadExecutor();
-        segmentExecutor= Executors.newSingleThreadExecutor();
+        segmentExecutor= Executors.newCachedThreadPool();
     }
 
     @SuppressLint({"ClickableViewAccessibility", "UnsafeOptInUsageError"})
@@ -300,6 +297,8 @@ public class exerciseScreen extends AppCompatActivity {
         }
     }
 
+
+
     class timerFunc extends TimerTask{
         @Override
         public void run(){
@@ -353,7 +352,6 @@ public class exerciseScreen extends AppCompatActivity {
         }
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @ExperimentalGetImage
     private void startCamera(){
         cameraProviderFuture.addListener(() -> {
@@ -385,24 +383,38 @@ public class exerciseScreen extends AppCompatActivity {
     }
 
 
-    private Task<Object> segwork(InputImage image) {
-        return segmenter.process(image).continueWith(segmentExecutor, task -> {
-            SegmentationMask segmentationMask  = task.getResult();
-            ByteBuffer mask = segmentationMask.getBuffer();
-            int maskWidth = segmentationMask.getWidth();
-            int maskHeight = segmentationMask.getHeight();
-            Bitmap input_img = ImageConvertUtils.getInstance().getUpRightBitmap(image);
-            int[] pixels = new int[input_img.getHeight() * input_img.getWidth()];
-            input_img.getPixels(pixels, 0, input_img.getWidth(), 0, 0, input_img.getWidth(), input_img.getHeight());
-            for (int i = 0; i < maskWidth * maskHeight; i++) {
+    class updatePic implements Runnable{
+        private final ByteBuffer mask;
+        private final Bitmap inputImg;
+
+        public updatePic(ByteBuffer mask, Bitmap bitmap) {
+            this.mask = mask;
+            this.inputImg = bitmap;
+        }
+        @Override
+        public void run() {
+            int[] pixels = new int[inputImg.getHeight() * inputImg.getWidth()];
+            inputImg.getPixels(pixels, 0, inputImg.getWidth(), 0, 0, inputImg.getWidth(), inputImg.getHeight());
+            for (int i = 0; i <  inputImg.getWidth() * inputImg.getWidth(); i++) {
                 if (mask.getFloat() < 0.1){ //사람
                     pixels[i]= Color.TRANSPARENT;
                 }
             }
-            input_img.setPixels(pixels, 0, input_img.getWidth(), 0, 0, input_img.getWidth(), input_img.getHeight());
-            Bitmap resize= Bitmap.createScaledBitmap(input_img,1600,2560,true);
-            new Handler(Looper.getMainLooper()).post(() -> userNoBG.setImageBitmap(input_img));
+            inputImg.setPixels(pixels, 0, inputImg.getWidth(), 0, 0, inputImg.getWidth(), inputImg.getHeight());
+            //Bitmap resize= Bitmap.createScaledBitmap(input_img,1600,2560,true);
+            new Handler(Looper.getMainLooper()).post(() -> userNoBG.setImageBitmap(inputImg));
 
+        }
+    }
+
+
+
+    private Task<Object> segwork(InputImage image) {
+        return segmenter.process(image).continueWith(segmentExecutor, task -> {
+            SegmentationMask segmentationMask  = task.getResult();
+            ByteBuffer mask = segmentationMask.getBuffer();
+            Bitmap input_img = ImageConvertUtils.getInstance().getUpRightBitmap(image);
+            segmentExecutor.execute(new updatePic(mask,input_img));
             return task;
         });
     }
